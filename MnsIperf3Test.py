@@ -3,11 +3,11 @@
 #Version: 2.0
 
 import platform
-import os
 import json
 import subprocess
 from datetime import datetime
 from MnsGpsManager import MnsGpsManager
+from MnsPingTest import PingTest
 
 class Iperf3Test:        
 
@@ -22,6 +22,7 @@ class Iperf3Test:
     self.test_timestamp = None
     self.gps_lat = None
     self.gps_long = None
+    self.gps_URL = None
     self.latency = None
     self.download = None
     self.upload = None
@@ -38,13 +39,17 @@ class Iperf3Test:
     self.resultOriginal = None
     self.resultJson = None
     self.test_successfull = False
+    self.iperfServer = None
 
   def run(self, iperfServer, iperfProtocol, filename):
+    self.iperfServer = iperfServer
+    #First, get GPS position if needed
     if (self.gps_support==True):
       gps = MnsGpsManager()
       self.gps_lat = gps.gps_lat
       self.gps_long = gps.gps_long
-    error_text = ""
+      self.gps_URL = gps.gps_URL
+    errorText = ""
     #Set parameters
     self.test_timestamp = datetime.utcnow().isoformat()
     self.iperfProtocol= iperfProtocol
@@ -54,26 +59,30 @@ class Iperf3Test:
     if platform.system() == "Windows" :      
       path = "C:\MNS\iperf-3.1.3-win64\iperf3.exe"
       if (iperfProtocol == "udp"):
-        command = path + " -u -c " + iperfServer + " > " + filename   
+        command = path + " -u -c " + self.iperfServer + " > " + filename   
       else:
-        command = path + " -c " + iperfServer + " > " + filename      
+        command = path + " -c " + self.iperfServer + " > " + filename      
     elif platform.system() == "Linux":
       if (iperfProtocol == "udp"):
-        print("Running iPerf3 for UDP packages on server " + iperfServer)
-        command = "iperf3 -u -c " + iperfServer + " > " + filename
+        print("Running iPerf3 for UDP packages on server " + self.iperfServer)
+        command = "iperf3 -u -c " + self.iperfServer + " > " + filename
       else:
-        print("Running iPerf3 for TCP packages on server " + iperfServer)
-        command = "iperf3 -c " + iperfServer + " > " + filename        
+        print("Running iPerf3 for TCP packages on server " + self.iperfServer)
+        command = "iperf3 -c " + self.iperfServer + " > " + filename        
     try:
       print("Running command (as sub-process): " + command)
-      subprocess.run(args= command, shell=True, timeout=self.iperf3TimeOut)      
+      subprocess.run(args= command, shell=True, timeout=self.iperf3TimeOut)
+      #As Iperf doesn't include latency we need to run a simple PingTest to get it
+      #As we use a subprocess above this will be done in parallell
+      self.runPing()
+      #Done with Ping/Latency check                  
       self.test_successfull = True
     except subprocess.TimeoutExpired:
       self.test_successfull = False
       errorText = self.errorPrefix + "Command (" + command + ") reached max timeout (" + str(self.iperf3TimeOut) + "s)"
       self.errorToFile(errorText, filename)
       print(errorText)      
-    except Exception as e:
+    except Exception:
       self.test_successfull = False
       errorText = self.errorPrefix + "Unknown error in subprocess.check_call"
       self.errorToFile(errorText, filename)      
@@ -118,9 +127,11 @@ class Iperf3Test:
       'test_timestamp': self.test_timestamp,
       'gps_lat': self.gps_lat,
       'gps_long': self.gps_long,
+      'gps_url': self.gps_URL,
       'latency': self.latency,
       'download': self.download,
       'upload': self.upload,
+      'iperfServer': self.iperfServer,
       'signalStrength': self.signalStrength,
       'operator': self.operator,
       'additional_info': self.additional_info
@@ -128,6 +139,7 @@ class Iperf3Test:
 
   #Print the jitter and packetloss result in JSON-format
   def jitterResultInJson(self):
+    #Add jitter & packetloss results as json 
     return {
       'jitter':self.jitter,
       'packetloss': self.packetLoss
@@ -148,3 +160,10 @@ class Iperf3Test:
     f.write(errorText)
     f.close()
     
+  def runPing(self):
+    #As Iperf doesn't include latency we need to run a simple PingTest to set the latency
+    pingResult = "tempPing.txt"
+    pingTest = PingTest(self.additional_info, False)
+    pingTest.run(self.iperfServer, 5, pingResult)
+    pingTest.evaluateResult(pingResult)
+    self.latency = pingTest.latency
