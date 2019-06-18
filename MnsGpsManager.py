@@ -11,6 +11,7 @@ class MnsGpsManager:
     #Defaults
     self.gps_lat = None
     self.gps_long = None
+    self.gps_URL = None
     self.initTime = 1
     self.backoffTime = 10
     self.attempts = 5
@@ -34,12 +35,13 @@ class MnsGpsManager:
         #Got position, break
         self.gps_lat = position[0]
         self.gps_long = position[1]
+        self.gps_URL = packet.map_url()
         connected = True
         break
       except gpsd.NoFixError:
         #At boot-up it will take some extra time for the GPS to get fixed position
         i +=1
-        print("Got NoFixError from GPS, will backoff for "+self.attempts + "s and try "
+        print("Got NoFixError from GPS, will back-off for "+self.attempts + "s and try "
               + str(self.attempts-i) + " more attempts")
         #Wait for some time and try again
         time.sleep(self.backoffTime)
