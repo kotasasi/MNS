@@ -8,16 +8,22 @@ import os
 import json
 import urllib3.request
 import glob
+import subprocess
 
-
+""" MnsReporter
+  Reporter class designed to independently report a test result to the central test result server
+"""
 class MnsReporter:
 
-  #Constructor
+  """ Constructor
+  """
   def  __init__(self, config):
     #Set constructor defaults
     self.device_id = platform.node()
     self.publicIpServer = "ifconfig.co/json"
     self.ipText = None
+    self.privateIp = None
+    self.privateIpInterface = "tun0"
     
     #Set default parameters
     self.encoding = 'utf-8'
@@ -34,6 +40,12 @@ class MnsReporter:
     self.endPoint = config.endPoint
     self.basicAuth = config.getBasicAuth()   
 
+
+  """ Get Public IP (address)
+  Method used to get the Public IP address of the device. Calls the <publicIpServer> to get IP and Country
+  and stores the result in the <publicIpServer> parameter.
+  For more details, visit https://ifconfig.co/
+  """
   def getPublicIp(self):
     print("About the GET public IP address from: " + self.publicIpServer)
     #GET to url
@@ -58,7 +70,26 @@ class MnsReporter:
         print("Public IP server returned error: " + httpResponse)        
     except:
       print("Failed to get Public IP. Please check Internet connection!")
+  
+  """ Get Private IP (address)
+  Method to get the local IP of the device. In Linux (only), it creates a subprocess and calls ifconfig 
+  to get the IP of the predefined interface <privateIpInterface>
+  Currently not used in the response back to server but could be used if needed later on
+  """
+  def getPrivateIp(self):
+    interface = self.privateIpInterface
+    #Only Linux supported right now
+    if (platform.system() == "Linux"):
+      try:
+        private_ip = subprocess.getoutput("/sbin/ifconfig %s" % interface).split("\n")[1].split()[1]
+      except:
+        private_ip = "Unknown"  
     
+  """ Create Result Folder
+  Method that creates a sub-folder to store the test results in if it doesn't already exist.
+  The folder structure that will be created is as follows:
+  <home> -> results -> <year> -> <month> -> <day>
+  """  
   def createResultFolder(self):
     #Get current date(time)
     now = datetime.now()
@@ -78,6 +109,14 @@ class MnsReporter:
       self.resultPath = path
     #print("Leaving createResultFolder with path: " + self.resultPath)
 
+  """ Report from File
+  
+  Parameters: 
+    filename (str): The full path to the file that holds the json result to report to server
+  
+  Method that reports a json formatted test-result and reports it to the central result server.
+  If the report fails the method will move the <filename> to a separate folder to be reported later.  
+  """
   #Report results to server
   def reportFromFile(self, filename):
     #Open file
@@ -111,7 +150,7 @@ class MnsReporter:
       #Print the response    
       print("\n")
       print("Server http response: " + str(req.status))
-      print("Resonse body:\n" + req.data.decode(self.encoding))      
+      print("Response body:\n" + req.data.decode(self.encoding))      
     except urllib3.exceptions.ConnectTimeoutError:
       print("********************")
       print("Got ConnectTimeoutError in MnsReporter.reportFromFile()")
@@ -122,7 +161,14 @@ class MnsReporter:
       #Move filename to separate folder for re-reporting later
       print("Got unexpected error in MnsReporter.reportFromFile()")
       #self.movedFailed(filename)
-
+  
+  """ Move failed (file)
+  
+  Parameters: 
+    filename (str): The full path of the file to be moved
+    
+  Moves the input filename to a separate folder to be re-reported later when the result server responds as expected.
+  """
   def movedFailed(self, filename):
     #Actually, this will not move the file.
     #It will rather create a new file and remove the old one
@@ -149,12 +195,23 @@ class MnsReporter:
       print(e)
     except:
       print("Unexpected error in movedFailed")
-
+  
+  """ Check for unreported results
+  Checks to <unReportedPath> folder for any json files to report to the result server
+  
+  Returns: 
+    True if there are any json-files in the <unReportedPath>
+    False if there are NO json-files in the <unReportedPath>
+  """
   def checkForUnreportedResults(self):
     #Get all josn-files in a list
     files = [f for f in glob.glob(self.unReportedPath + "**/*.json", recursive=True)]
     return files
 
+  """ Report All unreported (files)
+  Method will go through all the files in the <unReportedPath> folder and call the reportFromFile method 
+  to report each result to the result server.  
+  """
   def reportAllUnreported(self):    
     i=0
     for f in self.checkForUnreportedResults():
@@ -177,8 +234,4 @@ class MnsReporter:
       except:
         print("Unexpected error in reportAllUnreported()")
     print("Done reporting the previously " + str(i) + " unreported results.")
-      
-    
-    
-    
     
