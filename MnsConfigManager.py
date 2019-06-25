@@ -2,20 +2,29 @@
 #Author: johan.austrin@volvocars.com
 #Version: 2.0
 
+
 import sys
 import json
 import urllib3.request
-#import certifi
 import base64
 import os
 import platform
 import configparser
-import gpsd
 import time
 from datetime import datetime
 
-class ConfigManager:
 
+""" ConfigManager
+  Class designed to get and hold the device configuration retrieved from the central-config server.
+  Also has function to get a local "back-up" configuration from the file system in case the config server fails to respond.  
+"""
+class ConfigManager:
+  
+  """ Constructor, sets various object parameters    
+  Parameters:
+    deviceId (str): The device Id o fthe unit, examples: MNS-EU-STAT-1, MNS-US-CAR-1 etc.      
+  """
+  
   def __init__(self, deviceId):
       self.device_id = deviceId
       
@@ -42,7 +51,12 @@ class ConfigManager:
       elif platform.system() == "Windows":
         self.home = "C:\\MNS\\"
 
-  #GET device configuration
+  """ Get device configuration
+  Tries to call the configServer to get the device configuration. 
+  If successful, the server parameters will be used by the object.
+  If unsuccessful (i.e. server does not return a http 200 response or <timeout> ) the device will instead
+  read the local config file (mns-config.ini) and use the local parameters instead.
+  """
   def getServerConfig(self):
     print("About the GET device configuration from " + self.configServer)
     #GET from url (No retries)
@@ -58,10 +72,11 @@ class ConfigManager:
           'Content-Type': 'application/json; charset=utf-8'})
       #Evaluate the response
       httpResponse = str(req.status)
+      #If successful response
       if (httpResponse=="200"):
         print("Got device config from server")
         jsonResponse = json.loads(req.data.decode(self.encoding))
-        
+        #Set object parameters to the ones returned from the server 
         self.endPoint = jsonResponse["reportEndpoint"]
         self.additional_info = jsonResponse["reportAdditionalInfo"]
         self.gps_support = jsonResponse["reportHasGps"]
@@ -69,21 +84,6 @@ class ConfigManager:
         self.pingEchos = jsonResponse["pingEchos"]
         self.iperfServer = jsonResponse["iperfServer"]
         self.iperfProtocol = jsonResponse["iperfProtocol"]
-
-        #If the additional_info specifies B2C we'd like to know the public ip
-        """
-        if ("@B2C" in self.additional_info):
-          ip_fileName = "public_ip.txt"
-          print("Using B2C, will check for public IP")
-          command = "curl ifconfig.co/json > " + ip_fileName 
-          print("Running command: " + command)
-          os.system(command)
-          #Open the file containing the test result
-          file = open(ip_fileName, "r")
-          result = file.readlines()
-          result_json = json.dumps(result)
-          print("Got response: " + str(result_json["ip"]))
-          """
       else:
         print("Got HTTP error code: "+httpResponse)
         print("Will use local config instead")
@@ -100,6 +100,10 @@ class ConfigManager:
       self.getLocalConfig()
     
 
+  """ Read local config
+  Reads the local configuration file to get server address and credentials (only).
+  The idea is to use these parameters to get the server config.
+  """
   def readLocalConfig(self, homeFolder):
     #Read GENERAL config values      
     self.config = configparser.ConfigParser() 
@@ -108,6 +112,10 @@ class ConfigManager:
     self.username = self.config['GENERAL']['username']
     self.password = self.config['GENERAL']['password']
 
+  """Get local config
+  If the server configuration can't be fetched, this method will be called to read the
+  fall-back parameters stored in the local configuration file. 
+  """
   def getLocalConfig(self):
     self.endPoint = self.config['GENERAL']['ReportEndPoint']
     self.additional_info = self.config['GENERAL']['AdditionalInfo']
@@ -115,6 +123,10 @@ class ConfigManager:
     self.pingEchos = self.config['PING']['echos']
     self.pingServer = self.config['PING']['DefaultPingServer']
 
+  """ Get Basic Auth
+  Support method to base64 encode the username and password used in the
+  API request to the config-server
+  """
   def getBasicAuth(self):
     #Basic Auth
     data = self.username + ":" + self.password    
