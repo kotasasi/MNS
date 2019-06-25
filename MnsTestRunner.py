@@ -86,17 +86,6 @@ def main():
             runner.reporter.reportFromFile(jsonFile)
           #Report any unreported results to server
             runner.reporter.reportAllUnreported()
-      
-      #Set Server to Iperf, take argument if it exists, else take the one in the config file
-      #if argLength > 2:
-        #testRun.iperfServer = args[2]
-        #testRun.iperfProtocol = testRun.config['IPERF']['iperfProtocol']
-      #else:
-        #testRun.getServerConfig()
-        #testRun.iperfServer = testRun.config['IPERF']['IperfServer']
-        #testRun.iperfProtocol = testRun.config['IPERF']['iperfProtocol']
-      #print("iperfProtocol: " + testRun.iperfProtocol)
-      #result = testRun.runIperf3()
     elif mode == "config":      
       testRun.getServerConfig()
       result = False
@@ -107,12 +96,6 @@ def main():
       testRun.repostResult(args[2], args[3])
     else:
       print("The function \'" + mode + "\' is not supported")
-    #Get position and report if the test executed successfully
-    #if result:
-      #testRun.getPosition()
-      #testRun.report()
-    #else:
-      #print("Test test run failed. Please check output for details")
   else:
     print("You need to specify which function you want to execute.")
     print("Supported functions: bbk, ping, iperf3, config, folders")
