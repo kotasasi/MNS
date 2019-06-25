@@ -38,6 +38,15 @@ class PingTest:
     self.resultJson = None
     self.pingResult = None
 
+  """ Run (Ping test)
+  
+  Parameters:
+    server (str): The ip of the server to ping
+    echos (int): The number of times/echos to ping the server
+    filename(str): The full path to the filename to store the test result to
+    
+  Runs Ping on the device and stores the result in the <filename> input parameter.  
+  """
   def run(self, server, echos, filename):    
     if (self.gps_support==True):
       gps = MnsGpsManager()
@@ -52,6 +61,18 @@ class PingTest:
     print("Running command: " + command)
     os.system(command)
 
+  """ Evaluate result
+  
+  Parameters: 
+    filename (str): The full path to the file to evaluate the result of
+    
+  Opens the output <filename> of the ping test and extracts/evaluates the result of the file.
+  Stores the test result values in the object parameters:
+    packetLoss in percent
+    latency in ms
+    pingResult includes min/avg/max OR @ERROR and details if test fails
+    additional_info if provided    
+  """
   def evaluateResult(self, filename):
     self.pingResult = "Undefined!"
     #Open the file containing the test result
@@ -70,10 +91,10 @@ class PingTest:
         self.packetLoss = result[-3].split(",")[-2].split("(")[-1].split("%")[0].lstrip().rstrip()
         self.latency = result[-1].split(",")[-1].split("=")[-1].split("ms")[0].lstrip().rstrip()      
         splitResult = result[-1].split(",")
-        minimum = str(splitResult[0].split("=")[-1].split("ms")[0]).lstrip()
-        maximum = str(splitResult[1].split("=")[-1].split("ms")[0]).lstrip()
-        average = str(splitResult[2].split("=")[-1].split("ms")[0]).lstrip()
-        self.pingResult = " min/avg/max = " + minimum + "/" + average + "/" + maximum + " ms"
+        self.minimum = str(splitResult[0].split("=")[-1].split("ms")[0]).lstrip()
+        self.maximum = str(splitResult[1].split("=")[-1].split("ms")[0]).lstrip()
+        self.average = str(splitResult[2].split("=")[-1].split("ms")[0]).lstrip()
+        self.pingResult = " min/avg/max = " + self.minimum + "/" + self.average + "/" + self.maximum + " ms"
     elif platform.system() == "Linux" :
       #First, check packetloss
       self.packetLoss = result[-2].split(",")[-2].split("%")[0].lstrip().rstrip()
@@ -86,7 +107,11 @@ class PingTest:
     print("pingResult: " + self.pingResult)
     self.additional_info += self.pingResult
 
-   #Print the result in JSON-format
+  """ result
+  
+  Returns:
+    The result in JSON-format
+  """
   def result(self):    
     return {      
       'device_id': self.device_id,
@@ -102,7 +127,13 @@ class PingTest:
       'operator': self.operator,
       'additional_info': self.additional_info
       }
-
+  
+  """ toJson
+  Parameters: 
+    filename (str): The full path to the filename to save the json formatted text to
+  
+  Saves the payload to file
+  """
   def toJson(self, filename):
     #Save payload to file
     jsondata = json.dumps(self.result())
