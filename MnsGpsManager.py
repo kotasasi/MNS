@@ -2,11 +2,16 @@
 #Author: johan.austrin@volvocars.com
 #Version: 2.0
 
+#pip3 install gpsd-py3
+#https://github.com/MartijnBraam/gpsd-py3
 import gpsd
 import time
 
 class MnsGpsManager: 
 
+
+  """ Constructor, sets the local variables
+  """
   def __init__(self):
     #Defaults
     self.gps_lat = None
@@ -18,6 +23,19 @@ class MnsGpsManager:
 
     self.connect()
 
+
+  """ Connect
+  Using the GPSD library this method tries to connect to the GPS shield to get the GPS position.
+  As the GPS signal might not be fixed at first attempt this method will try for a number of <attempts>. 
+  If the attempt fails, it will back-off for <backoffTime> seconds and try again. If it fails after max <attempts> 
+  the position will be set to None.
+  
+  Sets parameters:
+    gps_lat (long): the current GPS Lat position, example 57.70716
+    gps_long (long): the current GPS Long position, example 11.96679
+    gps_URL (string): the current GPS position formatted as a OpenMap URL, example: 
+      https://www.openstreetmap.org/?mlat=57.72592&mlon=11.850768333&zoom=15
+  """
   def connect(self):
     #print("Will try to get a GPS position...")
     i=0
