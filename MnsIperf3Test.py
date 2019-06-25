@@ -118,7 +118,11 @@ class Iperf3Test:
       self.additional_info= self.additional_info + " @ERROR: " + errorText
     print("IPerf3 result evaluated.")
 
-  #Print the result in JSON-format
+  """ Result
+  
+  Returns:
+    The result in JSON-format
+  """
   def result(self):    
     return {      
       'device_id': self.device_id,
@@ -137,7 +141,11 @@ class Iperf3Test:
       'additional_info': self.additional_info
       }
 
-  #Print the jitter and packetloss result in JSON-format
+  """ Jitter result in json 
+  
+  Prints the jitter and packetloss result in JSON-format.
+  Note: Jitter is only applicable for UDP data
+  """
   def jitterResultInJson(self):
     #Add jitter & packetloss results as json 
     return {
@@ -145,7 +153,12 @@ class Iperf3Test:
       'packetloss': self.packetLoss
       }
 
-  #Print to json
+  """ toJson
+  Parameters: 
+    filename (str): The full path to the filename to save the json formatted text to
+  
+  Saves the payload to file
+  """
   def toJson(self, filename):
     #Save payload to file
     jsondata = json.dumps(self.result())
