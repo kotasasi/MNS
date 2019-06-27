@@ -59,7 +59,7 @@ class MnsGpsManager:
       except gpsd.NoFixError:
         #At boot-up it will take some extra time for the GPS to get fixed position
         i +=1
-        print("Got NoFixError from GPS, will back-off for "+self.attempts + "s and try "
+        print("Got NoFixError from GPS, will back-off for "+str(self.attempts) + "s and try "
               + str(self.attempts-i) + " more attempts")
         #Wait for some time and try again
         time.sleep(self.backoffTime)
