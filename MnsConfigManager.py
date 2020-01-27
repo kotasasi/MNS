@@ -12,6 +12,7 @@ import platform
 import configparser
 import time
 from datetime import datetime
+import traceback
 
 
 """ ConfigManager
@@ -82,7 +83,7 @@ class ConfigManager:
         self.gps_support = jsonResponse["reportHasGps"]
         self.pingServer = jsonResponse["pingServer"]
         self.pingEchos = jsonResponse["pingEchos"]
-        self.iperfServer = jsonResponse["iperfServer"]
+        self.iperfServer = jsonResponse["iperfServer"] 
         self.iperfProtocol = jsonResponse["iperfProtocol"]
       else:
         print("Got HTTP error code: "+httpResponse)
@@ -91,11 +92,13 @@ class ConfigManager:
     except urllib3.exceptions.ConnectTimeoutError:
       print("********************")
       print("Got ConnectTimeout when trying to connect to config-server. Please check internet connection!")
+      print(str(traceback.format_exc()))
       print("********************")
       print("Will use local config instead")
       self.getLocalConfig()
     except:
       print("Got unforseen error when trying to connect to config-server")
+      print(str(traceback.format_exc()))
       print("Will use local config instead")
       self.getLocalConfig()
     
@@ -122,6 +125,8 @@ class ConfigManager:
     self.gps_support = self.config.getboolean('GENERAL', 'GpsSupport')
     self.pingEchos = self.config['PING']['echos']
     self.pingServer = self.config['PING']['DefaultPingServer']
+    self.iperfServer = self.config['IPERF']['IperfServer']
+    self.iperfProtocol = self.config['IPERF']['IperfMode']
 
   """ Get Basic Auth
   Support method to base64 encode the username and password used in the

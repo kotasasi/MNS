@@ -9,7 +9,7 @@ import json
 import urllib3.request
 import glob
 import subprocess
-
+import traceback
 """ MnsReporter
   Reporter class designed to independently report a test result to the central test result server
 """
@@ -155,11 +155,13 @@ class MnsReporter:
       print("********************")
       print("Got ConnectTimeoutError in MnsReporter.reportFromFile()")
       print("********************")
+      
       #Move filename to separate folder for re-reporting later
       self.movedFailed(filename)
     except:
       #Move filename to separate folder for re-reporting later
       print("Got unexpected error in MnsReporter.reportFromFile()")
+      print(str(traceback.format_exc()))
       #self.movedFailed(filename)
   
   """ Move failed (file)

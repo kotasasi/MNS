@@ -11,6 +11,7 @@ from MnsConfigManager import ConfigManager
 from MnsReporter import MnsReporter
 from MnsPingTest import PingTest
 from MnsIperf3Test import Iperf3Test
+from MnsBbkTest import BbkTest
 
 class MnsTestRunner:
 
@@ -18,6 +19,7 @@ class MnsTestRunner:
   def  __init__(self):
     #Set constructor defaults
     self.device_id = platform.node()
+    print("My Device Id", self.device_id)
     self.time = datetime.now().strftime('%Y-%m-%d_%H%M%S')
     self.config = ConfigManager(self.device_id)    
     self.testRun = None  
@@ -44,7 +46,22 @@ def main():
     
     if mode == "bbk":
       print("BBK function called. Will run Brendbandskollen...Not")
-      #result = testRun.runBbk()
+      fileName = runner.reporter.resultPath + "bbk_result_" + runner.time
+      resultFile = fileName + ".txt"
+      jsonFile = fileName + ".json"
+      testRun=BbkTest(runner.config.additional_info, runner.config.gps_support)      
+      resultFile = fileName + ".txt"
+      jsonFile = fileName + ".json"
+      testRun.runBbk(resultFile)
+      testRun.evaluateResult(resultFile)
+          #Format the result in json
+      testRun.toJson(jsonFile)
+          #Report to server
+          #Report only if not dryrun
+      if isDryRun=="":
+         runner.reporter.reportFromFile(jsonFile)
+          #Report any unreported results to server
+         runner.reporter.reportAllUnreported()
     elif mode == "ping":
       print("Ping function called. Will run PingTest")
       testRun = PingTest(runner.config.additional_info, runner.config.gps_support)

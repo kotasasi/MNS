@@ -47,14 +47,16 @@ class PingTest:
     
   Runs Ping on the device and stores the result in the <filename> input parameter.  
   """
-  def run(self, server, echos, filename):    
+  def run(self, server, port, echos, filename):    
     if (self.gps_support==True):
       gps = MnsGpsManager()
       self.gps_lat = gps.gps_lat
       self.gps_long = gps.gps_long
     self.test_timestamp = datetime.utcnow().isoformat()
     #Different layout depending on OS
-    if platform.system() == "Windows" :      
+    print("pinging server.................." + server)    
+    if platform.system() == "Windows" :
+    
       command = "ping " + server + " -n " + str(echos) + " > " + filename      
     elif platform.system() == "Linux":
       command = "ping " + server + " -c " + str(echos) + " > " + filename

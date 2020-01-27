@@ -5,9 +5,45 @@
 import platform
 import json
 import subprocess
+import traceback
+import urllib3.request
+import requests
+import re
+import urllib.request
 from datetime import datetime
+import time
 from MnsGpsManager import MnsGpsManager
 from MnsPingTest import PingTest
+
+
+
+
+def get_ip_port(_str):
+    ip = _str.split(':')[0]
+    try:
+        port = _str.split(':')[1]
+    except:
+        port = '5201'
+    return ip, port
+
+def restart_iperf_server(iPerfServer,iperfPort):
+  print("Starting iPerf server before the test")  
+  http = urllib3.PoolManager(retries=False)
+  path = 'http://' + iPerfServer + ':5210' + '/restart_iperf3/' + str(iperfPort)
+  print(path)
+  try:
+    print("Trying to restart iPerf")
+    req = http.request('GET', path, body=None, timeout=5.0)
+    #Evaluate the response
+    httpResponse = str(req.status)
+    print(httpResponse)
+    if httpResponse=="200":
+      print("iPerf server restarted")
+  except urllib3.exceptions.ConnectTimeoutError:
+    print("********************")
+    print("Got ConnectTimeout when trying to connect to AWS. Please check internet connection!")  
+
+
 
 class Iperf3Test:        
 
@@ -23,10 +59,16 @@ class Iperf3Test:
     self.gps_lat = None
     self.gps_long = None
     self.gps_URL = None
+    self.country = None
+    self.mno = None
+    self.mccmnc=None
+    self.signalValue=None
     self.latency = None
     self.download = None
     self.upload = None
     self.signalStrength = None
+    self.connectionState = None
+    self.technology = None
     self.operator = None
     self.additional_info = additional_info
     #iPerf3 specifics
@@ -40,35 +82,48 @@ class Iperf3Test:
     self.resultJson = None
     self.test_successfull = False
     self.iperfServer = None
+    self.iperfPort= None
 
   def run(self, iperfServer, iperfProtocol, filename):
-    self.iperfServer = iperfServer
+    
+    ip, port = get_ip_port(iperfServer)
+    self.iperfServer = ip
+    self.iperfPort = port
     #First, get GPS position if needed
     if (self.gps_support==True):
       gps = MnsGpsManager()
       self.gps_lat = gps.gps_lat
       self.gps_long = gps.gps_long
+      self.country = gps.country
       self.gps_URL = gps.gps_URL
+    self.mno,self.signalStrength=self.get_mno_and_signalstrength()
+    #self.connectionState, self.technology =  self.get_connection_and_technology()
+    print(self.mno)
+    print(self.signalStrength)
     errorText = ""
     #Set parameters
     self.test_timestamp = datetime.utcnow().isoformat()
     self.iperfProtocol= iperfProtocol
     #Add details on which iperfProtocol is used
     self.test_type_id = self.test_type + " for " + iperfProtocol + " (" + iperfServer + ")"
+    #Restart iPerf Server and wait
+    restart_iperf_server(self.iperfServer,self.iperfPort)
+    time.sleep(5)
     #Different layout depending on OS
     if platform.system() == "Windows" :      
       path = "C:\MNS\iperf-3.1.3-win64\iperf3.exe"
       if (iperfProtocol == "udp"):
-        command = path + " -u -c " + self.iperfServer + " > " + filename   
+        command = path + " -u -c " + self.iperfServer + " -p " + str(self.iperfPort)+ " > " + filename  
       else:
-        command = path + " -c " + self.iperfServer + " > " + filename      
+        command = path + " -c " + self.iperfServer + " -p " + str(self.iperfPort)+  " > " + filename
+        print(command)      
     elif platform.system() == "Linux":
       if (iperfProtocol == "udp"):
         print("Running iPerf3 for UDP packages on server " + self.iperfServer)
         command = "iperf3 -u -c " + self.iperfServer + " > " + filename
       else:
         print("Running iPerf3 for TCP packages on server " + self.iperfServer)
-        command = "iperf3 -c " + self.iperfServer + " > " + filename        
+        command = "iperf3 -c " + self.iperfServer + " -p " + str(self.iperfPort) + " > " + filename        
     try:
       print("Running command (as sub-process): " + command)
       subprocess.run(args= command, shell=True, timeout=self.iperf3TimeOut)
@@ -84,10 +139,11 @@ class Iperf3Test:
       print(errorText)      
     except Exception:
       self.test_successfull = False
-      errorText = self.errorPrefix + "Unknown error in subprocess.check_call"
+      errorText = self.errorPrefix + "Unknown error in subprocess.check_call: " + str(traceback.format_exc())
       self.errorToFile(errorText, filename)      
       print(errorText)      
 
+          
   def evaluateResult(self, filename):
     #Open the file containing the test result
     file = open(filename, "r")
@@ -99,7 +155,7 @@ class Iperf3Test:
       #Fetch errorText
       errorText = result[0].split(" - ")[-1]
       #Add the errorText to the result
-      self.test_type_id = errorText      
+      #self.test_type_id = errorText      
       self.additional_info= self.additional_info + " @ERROR: " + errorText      
     if ((self.iperfProtocol == "udp") and self.test_successfull):
       #print("Evaluating UDP result(s)")
@@ -132,6 +188,12 @@ class Iperf3Test:
       'gps_lat': self.gps_lat,
       'gps_long': self.gps_long,
       'gps_url': self.gps_URL,
+      'country': self.country,
+      'mno': self.mno,
+      'mccmnc': self.mccmnc,
+      'connectionstate': self.connectionState,
+      'technology': self.technology,
+      "rssisignal" : self.signalValue,
       'latency': self.latency,
       'download': self.download,
       'upload': self.upload,
@@ -175,8 +237,80 @@ class Iperf3Test:
     
   def runPing(self):
     #As Iperf doesn't include latency we need to run a simple PingTest to set the latency
+    ip, port = get_ip_port(self.iperfServer)
+    self.iperfServer = ip
+    self.iperfPort = port
     pingResult = "tempPing.txt"
     pingTest = PingTest(self.additional_info, False)
-    pingTest.run(self.iperfServer, 5, pingResult)
+    pingTest.run(self.iperfServer, self.iperfPort, 5, pingResult)
     pingTest.evaluateResult(pingResult)
     self.latency = pingTest.latency
+  
+  def get_mno_and_signalstrength(self):
+    try:
+        signalStrength=""
+        response=requests.get("http://192.168.1.1/model.json",auth=('admin', 'volvo4life'))
+        jsonResponse = json.loads(response.content.decode("utf-8"))
+        #mno=str(jsonResponse["wwan"]["registerNetworkDisplay"])
+        mcc=jsonResponse["wwanadv"]["MCC"]
+        print(mcc)
+        mnc=jsonResponse["wwanadv"]["MNC"]
+        print(mnc)
+        self.mccmnc=str(mcc)+","+str(mnc)
+        mno=self.get_mno(mcc,mnc)                
+        self.signalValue=jsonResponse["wwan"]["signalStrength"]["rssi"]
+        print(self.signalValue)
+        #if (signalValue > -10):
+        #    signalStrength="Excellent"
+        #elif (signalValue >= -15 and signalValue <= -10):
+        #    signalStrength="Good"
+        #elif (signalValue < -15):
+        #    signalStrength="Poor"
+        if (self.signalValue >= -70):
+            signalStrength = "Excellent"
+        elif (self.signalValue < -70 and self.signalValue >= -85):
+            signalStrength = "Good"
+        elif (self.signalValue < -85 and self.signalValue >= -100):
+            signalStrength = "Fair"
+        elif (self.signalValue < -100):
+            signalStrength = "Poor"
+        elif (self.signalValue < -110):
+            signalStrength = "No Signal"
+    except:
+        print(traceback.format_exc())
+        mno="null"
+        signalStrength="null"
+    return mno, signalStrength
+
+  def get_mno(self,mcc,mnc):
+    td_re = re.compile('<td>([^<]*)</td>'*6)
+    url = "http://mcc-mnc.com/"
+    request = urllib.request.Request(url)
+    response = urllib.request.urlopen(request)
+    html = response.read().decode('utf-8')
+    
+    tbody_start = False
+
+    mcc_mnc_list = []
+    try:
+        for line in html.split('\n'):
+            if '<tbody>' in line:
+                tbody_start = True
+            elif '</tbody>' in line:
+                break
+            elif tbody_start:
+                td_search = td_re.search(line)
+                current_item = {}
+                td_search = td_re.split(line)
+                if (td_search[1] == mcc and td_search[2] == mnc):  
+                    mno=td_search[6][0:-1]
+                    return mno
+    except:
+        mno="null"
+  def get_connection_and_technology(self):
+     try:
+        self.connectionState = jsonResponse["wwan"]["connection"]
+        self.technology =  jsonResponse["wwan"]["currentPSserviceType"]
+     except:
+        self.connectionState = "null"   
+        self.technology = "null"

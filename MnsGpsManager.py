@@ -6,7 +6,10 @@
 #https://github.com/MartijnBraam/gpsd-py3
 import gpsd
 import time
-
+import traceback
+#from py import log
+from geopy.geocoders import Nominatim
+geolocator = Nominatim(user_agent="specify_your_app_name_here")
 class MnsGpsManager: 
 
 
@@ -17,6 +20,7 @@ class MnsGpsManager:
     self.gps_lat = None
     self.gps_long = None
     self.gps_URL = None
+    self.country=None
     self.initTime = 1
     self.backoffTime = 10
     self.attempts = 5
@@ -53,6 +57,7 @@ class MnsGpsManager:
         #Got position, break
         self.gps_lat = position[0]
         self.gps_long = position[1]
+        self.country = self.get_country(self.gps_lat,self.gps_long)
         self.gps_URL = packet.map_url()
         connected = True
         break
@@ -61,14 +66,28 @@ class MnsGpsManager:
         i +=1
         print("Got NoFixError from GPS, will back-off for "+str(self.attempts) + "s and try "
               + str(self.attempts-i) + " more attempts")
+        print(traceback.format_exc())
         #Wait for some time and try again
         time.sleep(self.backoffTime)
       except:
         i +=1
         print("Got Unknown error from gpsd. Will try again")
+        print(traceback.format_exc())
         time.sleep(self.backoffTime)
     if connected==False:
       print("Failed to get fixed GPS position after " +  str(self.attempts) + " attempts (Sorry)")
     if connected==True:
       print("Leaving MnsGpsManager with GPS location ("
             +str(self.gps_lat) + "," + str(self.gps_long) + ")")
+  def get_country(self, longitude,latitude):
+    try:
+        print("Geo locaiton for log and lat {} {}".format(longitude,latitude))
+        location = geolocator.reverse((str(longitude), str(latitude)))
+        address = location.raw
+        print(address)
+        country = address['address']['country']
+    except:
+        country = 'null'
+        print(traceback.format_exc())
+    print('Got country reverse lookup: {}'.format(country))
+    return country    
