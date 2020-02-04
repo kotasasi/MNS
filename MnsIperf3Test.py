@@ -83,12 +83,14 @@ class Iperf3Test:
     self.test_successfull = False
     self.iperfServer = None
     self.iperfPort= None
+    self.device=None
 
-  def run(self, iperfServer, iperfProtocol, filename):
+  def run(self, iperfServer, iperfProtocol, filename,device):
     
     ip, port = get_ip_port(iperfServer)
     self.iperfServer = ip
     self.iperfPort = port
+    self.device=device
     #First, get GPS position if needed
     if (self.gps_support==True):
       gps = MnsGpsManager()
@@ -110,20 +112,23 @@ class Iperf3Test:
     restart_iperf_server(self.iperfServer,self.iperfPort)
     time.sleep(5)
     #Different layout depending on OS
-    if platform.system() == "Windows" :      
+    if (platform.system() == "Windows" and self.device=="windows"):      
       path = "C:\MNS\iperf-3.1.3-win64\iperf3.exe"
       if (iperfProtocol == "udp"):
         command = path + " -u -c " + self.iperfServer + " -p " + str(self.iperfPort)+ " > " + filename  
       else:
         command = path + " -c " + self.iperfServer + " -p " + str(self.iperfPort)+  " > " + filename
         print(command)      
-    elif platform.system() == "Linux":
+    elif (platform.system() == "Linux" and self.device == "pi"):
       if (iperfProtocol == "udp"):
         print("Running iPerf3 for UDP packages on server " + self.iperfServer)
         command = "iperf3 -u -c " + self.iperfServer + " > " + filename
       else:
         print("Running iPerf3 for TCP packages on server " + self.iperfServer)
-        command = "iperf3 -c " + self.iperfServer + " -p " + str(self.iperfPort) + " > " + filename        
+        command = "iperf3 -c " + self.iperfServer + " -p " + str(self.iperfPort) + " > " + filename                
+    elif (platform.system() == "Linux" and (self.device == "tcam" or self.device == "ihu")):
+        print("Running iPerf3 for TCP packages on server " + self.iperfServer)
+        command = " adb shell /data/iperf3 -c " + self.iperfServer + " -p " + str(self.iperfPort) + " > " + filename        
     try:
       print("Running command (as sub-process): " + command)
       subprocess.run(args= command, shell=True, timeout=self.iperf3TimeOut)
@@ -141,8 +146,7 @@ class Iperf3Test:
       self.test_successfull = False
       errorText = self.errorPrefix + "Unknown error in subprocess.check_call: " + str(traceback.format_exc())
       self.errorToFile(errorText, filename)      
-      print(errorText)      
-
+      print(errorText)
           
   def evaluateResult(self, filename):
     #Open the file containing the test result
